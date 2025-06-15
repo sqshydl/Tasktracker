@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -78,11 +79,53 @@ func saveTasks() error {
 	return nil
 }
 
-func add() {
+// Helper function to find task by ID
+func findTaskById(id int) (*Task, int) {
+	for i, task := range tasks {
+		if task.Id == id {
+			return &tasks[i], i
+		}
+	}
+	return nil, -1
+}
+
+// Helper function to get status string
+func getStatusString(status int) string {
+	switch status {
+	case 0:
+		return "Not Started"
+	case 1:
+		return "In Progress"
+	case 2:
+		return "Done"
+	default:
+		return "Unknown"
+	}
+}
+
+// Helper function to get user input as integer
+func getIntInput(prompt string) (int, error) {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Insert New Task: ")
-	desc, _ := reader.ReadString('\n')
-	desc = strings.TrimSpace(desc)
+	fmt.Print(prompt)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	return strconv.Atoi(input)
+}
+
+// Helper function to get user input as string
+func getStringInput(prompt string) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt)
+	input, _ := reader.ReadString('\n')
+	return strings.TrimSpace(input)
+}
+
+func add() {
+	desc := getStringInput("Insert New Task: ")
+	if desc == "" {
+		fmt.Println("Task description cannot be empty.")
+		return
+	}
 
 	newTask := Task{
 		Id:          getNextId(),
@@ -114,19 +157,167 @@ func listTasks() {
 
 	fmt.Println("\n--- All Tasks ---")
 	for _, task := range tasks {
-		status := "Not Started"
-		if task.Status == 1 {
-			status = "In Progress"
-		} else if task.Status == 2 {
-			status = "Done"
-		}
-
 		fmt.Printf("ID: %d | Status: %s | Description: %s\n",
-			task.Id, status, task.Description)
+			task.Id, getStatusString(task.Status), task.Description)
 		fmt.Printf("Created: %s | Updated: %s\n\n",
 			task.CreatedAt.Format("2006-01-02 15:04:05"),
 			task.UpdateAt.Format("2006-01-02 15:04:05"))
 	}
+}
+
+// Function to view a specific task by ID
+func viewTask() {
+	if len(tasks) == 0 {
+		fmt.Println("No tasks found.")
+		return
+	}
+
+	id, err := getIntInput("Enter task ID to view: ")
+	if err != nil {
+		fmt.Println("Invalid ID format. Please enter a number.")
+		return
+	}
+
+	task, _ := findTaskById(id)
+	if task == nil {
+		fmt.Printf("Task with ID %d not found.\n", id)
+		return
+	}
+
+	fmt.Println("\n--- Task Details ---")
+	fmt.Printf("ID: %d\n", task.Id)
+	fmt.Printf("Description: %s\n", task.Description)
+	fmt.Printf("Status: %s\n", getStatusString(task.Status))
+	fmt.Printf("Created: %s\n", task.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Updated: %s\n", task.UpdateAt.Format("2006-01-02 15:04:05"))
+}
+
+// Function to edit a task
+func editTask() {
+	if len(tasks) == 0 {
+		fmt.Println("No tasks found.")
+		return
+	}
+
+	id, err := getIntInput("Enter task ID to edit: ")
+	if err != nil {
+		fmt.Println("Invalid ID format. Please enter a number.")
+		return
+	}
+
+	task, _ := findTaskById(id)
+	if task == nil {
+		fmt.Printf("Task with ID %d not found.\n", id)
+		return
+	}
+
+	fmt.Printf("\nCurrent task: %s\n", task.Description)
+	fmt.Printf("Current status: %s\n", getStatusString(task.Status))
+
+	fmt.Println("\nWhat would you like to edit?")
+	fmt.Println("1. Description")
+	fmt.Println("2. Status")
+	fmt.Println("3. Both")
+
+	choice, err := getIntInput("Enter choice (1-3): ")
+	if err != nil {
+		fmt.Println("Invalid choice. Please enter a number.")
+		return
+	}
+
+	switch choice {
+	case 1:
+		newDesc := getStringInput("Enter new description: ")
+		if newDesc != "" {
+			task.Description = newDesc
+			task.UpdateAt = time.Now()
+		}
+	case 2:
+		fmt.Println("\nStatus options:")
+		fmt.Println("0. Not Started")
+		fmt.Println("1. In Progress")
+		fmt.Println("2. Done")
+
+		newStatus, err := getIntInput("Enter new status (0-2): ")
+		if err != nil || newStatus < 0 || newStatus > 2 {
+			fmt.Println("Invalid status. Please enter 0, 1, or 2.")
+			return
+		}
+		task.Status = newStatus
+		task.UpdateAt = time.Now()
+	case 3:
+		newDesc := getStringInput("Enter new description: ")
+		if newDesc != "" {
+			task.Description = newDesc
+		}
+
+		fmt.Println("\nStatus options:")
+		fmt.Println("0. Not Started")
+		fmt.Println("1. In Progress")
+		fmt.Println("2. Done")
+
+		newStatus, err := getIntInput("Enter new status (0-2): ")
+		if err != nil || newStatus < 0 || newStatus > 2 {
+			fmt.Println("Invalid status. Please enter 0, 1, or 2.")
+			return
+		}
+		task.Status = newStatus
+		task.UpdateAt = time.Now()
+	default:
+		fmt.Println("Invalid choice.")
+		return
+	}
+
+	// Save to file
+	err = saveTasks()
+	if err != nil {
+		fmt.Printf("Error saving task: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Task %d updated successfully!\n", id)
+}
+
+// Function to delete a task
+func deleteTask() {
+	if len(tasks) == 0 {
+		fmt.Println("No tasks found.")
+		return
+	}
+
+	id, err := getIntInput("Enter task ID to delete: ")
+	if err != nil {
+		fmt.Println("Invalid ID format. Please enter a number.")
+		return
+	}
+
+	task, index := findTaskById(id)
+	if task == nil {
+		fmt.Printf("Task with ID %d not found.\n", id)
+		return
+	}
+
+	// Show task details before deletion
+	fmt.Printf("\nTask to delete: %s\n", task.Description)
+	fmt.Printf("Status: %s\n", getStatusString(task.Status))
+
+	confirm := getStringInput("Are you sure you want to delete this task? (y/N): ")
+	if strings.ToLower(confirm) != "y" && strings.ToLower(confirm) != "yes" {
+		fmt.Println("Deletion cancelled.")
+		return
+	}
+
+	// Remove task from slice
+	tasks = append(tasks[:index], tasks[index+1:]...)
+
+	// Save to file
+	err = saveTasks()
+	if err != nil {
+		fmt.Printf("Error saving tasks: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Task %d deleted successfully!\n", id)
 }
 
 func main() {
@@ -138,7 +329,7 @@ func main() {
 	}
 
 	fmt.Println("Task Tracker")
-	fmt.Println("Commands: add, list, quit")
+	fmt.Println("Commands: add, list, view, edit, delete, quit")
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
@@ -151,11 +342,17 @@ func main() {
 			add()
 		case "list":
 			listTasks()
+		case "view":
+			viewTask()
+		case "edit":
+			editTask()
+		case "delete":
+			deleteTask()
 		case "quit":
 			fmt.Println("Goodbye!")
 			return
 		default:
-			fmt.Println("Unknown command. Use: add, list, or quit")
+			fmt.Println("Unknown command. Use: add, list, view, edit, delete, or quit")
 		}
 	}
 }
